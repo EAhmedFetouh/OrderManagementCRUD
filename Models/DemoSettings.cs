@@ -13,4 +13,6 @@ public class DemoSettings
 
     public int SeedMinItemsPerOrder { get; set; } = 1;
     public int SeedMaxItemsPerOrder { get; set; } = 5;
+
+    public int DbCommandTimeoutSeconds { get; set; } = 180;
 }
