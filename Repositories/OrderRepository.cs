@@ -1,0 +1,269 @@
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations.Schema;
+using OrderManagement.CRUD.Data;
+using OrderManagement.CRUD.Models.DTOs;
+using OrderManagement.CRUD.Models.Entities;
+
+namespace OrderManagement.CRUD.Repositories;
+
+public interface IOrderRepository
+{
+    /// <summary>
+    /// Demonstrates a write-heavy transaction that updates multiple tables in a single request.
+    /// </summary>
+    Task<CreateOrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Demonstrates multi-table JOIN cost for a single details view as data grows.
+    /// </summary>
+    Task<OrderDetailsResponse?> GetOrderByIdAsync(Guid orderId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Demonstrates customer-centric list queries that become slower without indexes.
+    /// </summary>
+    Task<List<CustomerOrderSummaryResponse>> GetCustomerOrdersAsync(Guid customerId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Demonstrates full scans and aggregations on transactional tables competing with writes.
+    /// </summary>
+    Task<DashboardResponse> GetDashboardRawAggregationAsync(bool simulateSlowQueries, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Demonstrates pre-aggregated reads via indexed view while still sharing the same write database.
+    /// </summary>
+    Task<DashboardResponse> GetDashboardFromMaterializedViewAsync(bool simulateSlowQueries, CancellationToken cancellationToken);
+}
+
+public class OrderRepository(AppDbContext context) : IOrderRepository
+{
+    /// <inheritdoc />
+    public async Task<CreateOrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken)
+    {
+        await using var tx = await context.Database.BeginTransactionAsync(cancellationToken);
+
+        var customerExists = await context.Customers.AnyAsync(c => c.Id == request.CustomerId, cancellationToken);
+        if (!customerExists)
+        {
+            throw new InvalidOperationException("Customer does not exist.");
+        }
+
+        var productIds = request.Items.Select(x => x.ProductId).Distinct().ToList();
+        var products = await context.Products
+            .Where(p => productIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, cancellationToken);
+
+        foreach (var item in request.Items)
+        {
+            if (!products.TryGetValue(item.ProductId, out var product))
+            {
+                throw new InvalidOperationException($"Product {item.ProductId} does not exist.");
+            }
+
+            if (item.Quantity <= 0)
+            {
+                throw new InvalidOperationException("Quantity must be greater than zero.");
+            }
+
+            if (product.StockQuantity < item.Quantity)
+            {
+                throw new InvalidOperationException($"Insufficient stock for product {product.Name}.");
+            }
+        }
+
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            CustomerId = request.CustomerId,
+            OrderDate = DateTime.UtcNow,
+            Status = OrderStatus.Pending
+        };
+
+        var orderItems = new List<OrderItem>();
+        foreach (var item in request.Items)
+        {
+            var product = products[item.ProductId];
+            product.StockQuantity -= item.Quantity;
+
+            orderItems.Add(new OrderItem
+            {
+                Id = Guid.NewGuid(),
+                OrderId = order.Id,
+                ProductId = item.ProductId,
+                Quantity = item.Quantity,
+                UnitPrice = product.Price
+            });
+        }
+
+        order.TotalAmount = orderItems.Sum(x => x.UnitPrice * x.Quantity);
+
+        await context.Orders.AddAsync(order, cancellationToken);
+        await context.OrderItems.AddRangeAsync(orderItems, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+
+        return new CreateOrderResponse
+        {
+            OrderId = order.Id,
+            TotalAmount = order.TotalAmount
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<OrderDetailsResponse?> GetOrderByIdAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        return await context.Orders
+            .AsNoTracking()
+            .Where(o => o.Id == orderId)
+            .Select(o => new OrderDetailsResponse
+            {
+                OrderId = o.Id,
+                CustomerName = o.Customer!.Name,
+                OrderDate = o.OrderDate,
+                Status = o.Status,
+                TotalAmount = o.TotalAmount,
+                Items = o.Items.Select(i => new OrderItemDetailsResponse
+                {
+                    ProductId = i.ProductId,
+                    ProductName = i.Product!.Name,
+                    Quantity = i.Quantity,
+                    UnitPrice = i.UnitPrice,
+                    LineTotal = i.Quantity * i.UnitPrice
+                }).ToList()
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<List<CustomerOrderSummaryResponse>> GetCustomerOrdersAsync(Guid customerId, CancellationToken cancellationToken)
+    {
+        return await context.Orders
+            .AsNoTracking()
+            .Where(o => o.CustomerId == customerId)
+            .OrderByDescending(o => o.OrderDate)
+            .Select(o => new CustomerOrderSummaryResponse
+            {
+                OrderId = o.Id,
+                OrderDate = o.OrderDate,
+                Status = o.Status,
+                TotalAmount = o.TotalAmount,
+                ItemCount = o.Items.Sum(x => x.Quantity)
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<DashboardResponse> GetDashboardRawAggregationAsync(bool simulateSlowQueries, CancellationToken cancellationToken)
+    {
+        if (simulateSlowQueries)
+        {
+            Thread.Sleep(250);
+        }
+
+        var lastMonthStart = DateTime.UtcNow.AddMonths(-1);
+
+        // This query competes with writes on the same DB
+        var totalOrders = await context.Orders.CountAsync(cancellationToken);
+        var totalRevenue = await context.Orders.SumAsync(o => (decimal?)o.TotalAmount, cancellationToken);
+        var avgOrder = await context.Orders.AverageAsync(o => (decimal?)o.TotalAmount, cancellationToken);
+        var topProducts = await context.OrderItems
+            .GroupBy(x => new { x.ProductId, ProductName = x.Product!.Name })
+            .Select(g => new TopSellingProductResponse
+            {
+                ProductId = g.Key.ProductId,
+                ProductName = g.Key.ProductName,
+                TotalQuantitySold = g.Sum(x => x.Quantity)
+            })
+            .OrderByDescending(x => x.TotalQuantitySold)
+            .Take(5)
+            .ToListAsync(cancellationToken);
+        var status = await context.Orders
+            .GroupBy(x => x.Status)
+            .Select(g => new OrderStatusCountResponse
+            {
+                Status = g.Key,
+                Count = g.Count()
+            })
+            .ToListAsync(cancellationToken);
+        var revenueLastMonth = await context.Orders
+            .Where(x => x.OrderDate >= lastMonthStart)
+            .SumAsync(x => (decimal?)x.TotalAmount, cancellationToken);
+
+        return new DashboardResponse
+        {
+            TotalOrders = totalOrders,
+            TotalRevenue = totalRevenue ?? 0,
+            AverageOrderValue = avgOrder ?? 0,
+            TopSellingProducts = topProducts,
+            OrdersPerStatus = status,
+            RevenueLastMonth = revenueLastMonth ?? 0
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<DashboardResponse> GetDashboardFromMaterializedViewAsync(bool simulateSlowQueries, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (simulateSlowQueries)
+            {
+                Thread.Sleep(250);
+            }
+
+            var lastMonthStart = DateTime.UtcNow.AddMonths(-1);
+
+            var materializedRows = await context.Database.SqlQuery<DashboardMaterializedRow>(
+                    $@"SELECT [Status], [OrdersPerStatus], [RevenuePerStatus]
+                       FROM [dbo].[vw_DashboardSummary]")
+                .ToListAsync(cancellationToken);
+
+            var topProducts = await context.OrderItems
+                .GroupBy(x => new { x.ProductId, ProductName = x.Product!.Name })
+                .Select(g => new TopSellingProductResponse
+                {
+                    ProductId = g.Key.ProductId,
+                    ProductName = g.Key.ProductName,
+                    TotalQuantitySold = g.Sum(x => x.Quantity)
+                })
+                .OrderByDescending(x => x.TotalQuantitySold)
+                .Take(5)
+                .ToListAsync(cancellationToken);
+
+            var revenueLastMonth = await context.Orders
+                .Where(x => x.OrderDate >= lastMonthStart)
+                .SumAsync(x => (decimal?)x.TotalAmount, cancellationToken);
+
+            var totalOrders = materializedRows.Sum(x => x.OrdersPerStatus);
+            var totalRevenue = materializedRows.Sum(x => x.RevenuePerStatus);
+
+            return new DashboardResponse
+            {
+                TotalOrders = (int)totalOrders,
+                TotalRevenue = totalRevenue,
+                AverageOrderValue = totalOrders == 0 ? 0 : totalRevenue / totalOrders,
+                TopSellingProducts = topProducts,
+                OrdersPerStatus = materializedRows
+                    .Select(x => new OrderStatusCountResponse
+                    {
+                        Status = (OrderStatus)x.Status,
+                        Count = (int)x.OrdersPerStatus
+                    })
+                    .OrderBy(x => x.Status)
+                    .ToList(),
+                RevenueLastMonth = revenueLastMonth ?? 0
+            };
+        }
+        catch (SqlException ex) when (ex.Number == 208)
+        {
+            return await GetDashboardRawAggregationAsync(simulateSlowQueries, cancellationToken);
+        }
+    }
+
+    private sealed class DashboardMaterializedRow
+    {
+        public int Status { get; set; }
+        public long OrdersPerStatus { get; set; }
+        [Column(TypeName = "decimal(19,2)")]
+        public decimal RevenuePerStatus { get; set; }
+    }
+}
