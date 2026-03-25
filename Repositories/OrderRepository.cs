@@ -1,6 +1,4 @@
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using System.ComponentModel.DataAnnotations.Schema;
 using OrderManagement.CRUD.Data;
 using OrderManagement.CRUD.Models.DTOs;
 using OrderManagement.CRUD.Models.Entities;
@@ -28,11 +26,6 @@ public interface IOrderRepository
     /// Demonstrates full scans and aggregations on transactional tables competing with writes.
     /// </summary>
     Task<DashboardResponse> GetDashboardRawAggregationAsync(bool simulateSlowQueries, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Demonstrates pre-aggregated reads via indexed view while still sharing the same write database.
-    /// </summary>
-    Task<DashboardResponse> GetDashboardFromMaterializedViewAsync(bool simulateSlowQueries, CancellationToken cancellationToken);
 }
 
 public class OrderRepository(AppDbContext context) : IOrderRepository
@@ -198,72 +191,5 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
             OrdersPerStatus = status,
             RevenueLastMonth = revenueLastMonth ?? 0
         };
-    }
-
-    /// <inheritdoc />
-    public async Task<DashboardResponse> GetDashboardFromMaterializedViewAsync(bool simulateSlowQueries, CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (simulateSlowQueries)
-            {
-                Thread.Sleep(250);
-            }
-
-            var lastMonthStart = DateTime.UtcNow.AddMonths(-1);
-
-            var materializedRows = await context.Database.SqlQuery<DashboardMaterializedRow>(
-                    $@"SELECT [Status], [OrdersPerStatus], [RevenuePerStatus]
-                       FROM [dbo].[vw_DashboardSummary]")
-                .ToListAsync(cancellationToken);
-
-            var topProducts = await context.OrderItems
-                .GroupBy(x => new { x.ProductId, ProductName = x.Product!.Name })
-                .Select(g => new TopSellingProductResponse
-                {
-                    ProductId = g.Key.ProductId,
-                    ProductName = g.Key.ProductName,
-                    TotalQuantitySold = g.Sum(x => x.Quantity)
-                })
-                .OrderByDescending(x => x.TotalQuantitySold)
-                .Take(5)
-                .ToListAsync(cancellationToken);
-
-            var revenueLastMonth = await context.Orders
-                .Where(x => x.OrderDate >= lastMonthStart)
-                .SumAsync(x => (decimal?)x.TotalAmount, cancellationToken);
-
-            var totalOrders = materializedRows.Sum(x => x.OrdersPerStatus);
-            var totalRevenue = materializedRows.Sum(x => x.RevenuePerStatus);
-
-            return new DashboardResponse
-            {
-                TotalOrders = (int)totalOrders,
-                TotalRevenue = totalRevenue,
-                AverageOrderValue = totalOrders == 0 ? 0 : totalRevenue / totalOrders,
-                TopSellingProducts = topProducts,
-                OrdersPerStatus = materializedRows
-                    .Select(x => new OrderStatusCountResponse
-                    {
-                        Status = (OrderStatus)x.Status,
-                        Count = (int)x.OrdersPerStatus
-                    })
-                    .OrderBy(x => x.Status)
-                    .ToList(),
-                RevenueLastMonth = revenueLastMonth ?? 0
-            };
-        }
-        catch (SqlException ex) when (ex.Number == 208)
-        {
-            return await GetDashboardRawAggregationAsync(simulateSlowQueries, cancellationToken);
-        }
-    }
-
-    private sealed class DashboardMaterializedRow
-    {
-        public int Status { get; set; }
-        public long OrdersPerStatus { get; set; }
-        [Column(TypeName = "decimal(19,2)")]
-        public decimal RevenuePerStatus { get; set; }
     }
 }

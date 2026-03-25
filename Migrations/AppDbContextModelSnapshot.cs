@@ -46,6 +46,8 @@ namespace OrderManagement.CRUD.Migrations
                     b.ToTable("Customers");
                 });
 
+            // NOTE: This baseline snapshot intentionally contains only the initial schema.
+
             modelBuilder.Entity("OrderManagement.CRUD.Models.Entities.Order", b =>
                 {
                     b.Property<Guid>("Id")

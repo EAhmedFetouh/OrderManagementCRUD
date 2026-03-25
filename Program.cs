@@ -21,7 +21,6 @@ builder.Host.UseSerilog();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddMemoryCache();
 builder.Services.Configure<DemoSettings>(builder.Configuration.GetSection("DemoSettings"));
 
 builder.Services.AddDbContext<AppDbContext>(options =>
