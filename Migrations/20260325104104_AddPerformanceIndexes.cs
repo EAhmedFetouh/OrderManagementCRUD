@@ -1,9 +1,14 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace OrderManagement.CRUD.Migrations
 {
+    /// <summary>
+    /// Misaligned indexes for demos: classic FK indexes only (CustomerId, OrderId, ProductId).
+    /// They help FK lookups but do little for heavy dashboard aggregations while increasing write cost.
+    /// Compare with migration AddDashboardQueryIndexes on branch step/02b-indexes-dashboard.
+    /// </summary>
     /// <inheritdoc />
     public partial class AddPerformanceIndexes : Migration
     {
