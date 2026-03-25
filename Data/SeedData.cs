@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using OrderManagement.CRUD.Models;
 using OrderManagement.CRUD.Models.Entities;
 
 namespace OrderManagement.CRUD.Data;
@@ -13,6 +15,7 @@ public static class SeedData
     {
         await using var scope = services.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var demoSettings = scope.ServiceProvider.GetRequiredService<IOptions<DemoSettings>>().Value;
 
         await context.Database.MigrateAsync();
 
@@ -25,8 +28,8 @@ public static class SeedData
         var stopwatch = Stopwatch.StartNew();
         var random = new Random(42);
 
-        logger.LogInformation("Seeding customers...");
-        var customers = Enumerable.Range(1, 1_000)
+        logger.LogInformation("Seeding customers ({Count})...", demoSettings.SeedCustomers);
+        var customers = Enumerable.Range(1, demoSettings.SeedCustomers)
             .Select(i => new Customer
             {
                 Id = Guid.NewGuid(),
@@ -38,8 +41,8 @@ public static class SeedData
         await context.Customers.AddRangeAsync(customers);
         await context.SaveChangesAsync();
 
-        logger.LogInformation("Seeding products...");
-        var products = Enumerable.Range(1, 500)
+        logger.LogInformation("Seeding products ({Count})...", demoSettings.SeedProducts);
+        var products = Enumerable.Range(1, demoSettings.SeedProducts)
             .Select(i => new Product
             {
                 Id = Guid.NewGuid(),
@@ -51,16 +54,17 @@ public static class SeedData
         await context.Products.AddRangeAsync(products);
         await context.SaveChangesAsync();
 
-        logger.LogInformation("Seeding orders and order items...");
-        const int batchSize = 1000;
+        logger.LogInformation("Seeding orders and order items ({Count})...", demoSettings.SeedOrders);
+        var batchSize = demoSettings.SeedBatchSize <= 0 ? 1_000 : demoSettings.SeedBatchSize;
         var customerIds = customers.Select(c => c.Id).ToArray();
 
-        for (var batchStart = 0; batchStart < 100_000; batchStart += batchSize)
+        for (var batchStart = 0; batchStart < demoSettings.SeedOrders; batchStart += batchSize)
         {
-            var orderBatch = new List<Order>(batchSize);
-            var itemBatch = new List<OrderItem>(batchSize * 3);
+            var remaining = Math.Min(batchSize, demoSettings.SeedOrders - batchStart);
+            var orderBatch = new List<Order>(remaining);
+            var itemBatch = new List<OrderItem>(remaining * 3);
 
-            for (var i = 0; i < batchSize; i++)
+            for (var i = 0; i < remaining; i++)
             {
                 var orderId = Guid.NewGuid();
                 var itemCount = random.Next(1, 6);
@@ -95,7 +99,7 @@ public static class SeedData
             await context.Orders.AddRangeAsync(orderBatch);
             await context.OrderItems.AddRangeAsync(itemBatch);
             await context.SaveChangesAsync();
-            logger.LogInformation("Seed progress: {Count}/100000 orders", batchStart + batchSize);
+            logger.LogInformation("Seed progress: {Count}/{Total} orders", batchStart + remaining, demoSettings.SeedOrders);
         }
 
         stopwatch.Stop();
