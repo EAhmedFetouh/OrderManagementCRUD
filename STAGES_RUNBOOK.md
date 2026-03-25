@@ -1,6 +1,6 @@
 # OrderManagement.CRUD Stages Runbook
 
-This runbook applies one stage at a time using a separate database name per stage.
+This runbook applies one stage at a time using a **separate database name per stage** so comparisons stay fair.
 
 ## 0) One-time setup
 
@@ -40,22 +40,51 @@ Test:
 - `GET /api/dashboard`
 - `POST /api/benchmarks/run`
 
-## 2) Stage 2 - Indexes
+## 2a) Stage 2a - Misaligned indexes (FK-only)
 
-Create and switch:
+**Story:** “We added indexes” — classic **foreign-key indexes only** (`CustomerId`, `OrderId`, `ProductId`). They help FK lookups but barely help the heavy dashboard aggregations, while **increasing write cost**.
+
+Branch:
 
 ```bash
-git checkout -b step/02-add-indexes
+git checkout step/02-indexes-misaligned
 ```
 
 Set connection string database name to:
 
-- `OrderCrud_S2_Indexes`
+- `OrderCrud_S2_Misaligned`
 
 Run:
 
 ```bash
-dotnet ef migrations add AddPerformanceIndexes
+dotnet ef database update
+dotnet run
+```
+
+The migration `AddPerformanceIndexes` is already in this branch (do not add it again).
+
+Test:
+
+- `GET /api/dashboard`
+- `POST /api/benchmarks/run`
+
+## 2b) Stage 2b - Dashboard-aligned indexes
+
+**Story:** Indexes on columns the **dashboard query actually uses** (`OrderDate` for last-month revenue, `Status` for grouping, `OrderItems.ProductId` for top products). No extra FK-only indexes on `CustomerId` / `OrderId`, so **writes stay lighter** than 2a while reads improve more for this workload.
+
+Branch:
+
+```bash
+git checkout step/02b-indexes-dashboard
+```
+
+Set connection string database name to:
+
+- `OrderCrud_S2b_Dashboard`
+
+Run:
+
+```bash
 dotnet ef database update
 dotnet run
 ```
@@ -64,6 +93,8 @@ Test:
 
 - `GET /api/dashboard`
 - `POST /api/benchmarks/run`
+
+Compare **2a vs 2b** with the same seed settings (`DemoSettings` / `appsettings`).
 
 ## 3) Stage 3 - Caching
 
@@ -120,4 +151,3 @@ Test:
 - `GET /api/dashboard/compare`
 - `POST /api/benchmarks/materialized-impact`
 - `POST /api/benchmarks/run`
-
