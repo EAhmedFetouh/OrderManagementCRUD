@@ -54,6 +54,21 @@ public class OrdersController(
     }
 
     /// <summary>
+    /// Demonstrates stale dashboard behavior when writes and cached reads happen in the same user flow.
+    /// </summary>
+    [HttpPost("with-cache-check")]
+    public async Task<ActionResult<OrderWithDashboardResponse>> CreateOrderWithCacheCheck(
+        [FromBody] CreateOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var sw = Stopwatch.StartNew();
+        var result = await orderService.CreateOrderAndReadCachedDashboardAsync(request, cancellationToken);
+        sw.Stop();
+        logger.LogInformation("POST /api/orders/with-cache-check executed in {ElapsedMs} ms", sw.ElapsedMilliseconds);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Demonstrates full-scan aggregate dashboard cost and contention against order writes.
     /// </summary>
     [HttpGet("/api/dashboard")]
