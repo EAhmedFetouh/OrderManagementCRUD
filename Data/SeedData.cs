@@ -57,6 +57,8 @@ public static class SeedData
         logger.LogInformation("Seeding orders and order items ({Count})...", demoSettings.SeedOrders);
         var batchSize = demoSettings.SeedBatchSize <= 0 ? 1_000 : demoSettings.SeedBatchSize;
         var customerIds = customers.Select(c => c.Id).ToArray();
+        var minItems = Math.Max(1, demoSettings.SeedMinItemsPerOrder);
+        var maxItems = Math.Max(minItems, demoSettings.SeedMaxItemsPerOrder);
 
         for (var batchStart = 0; batchStart < demoSettings.SeedOrders; batchStart += batchSize)
         {
@@ -67,7 +69,7 @@ public static class SeedData
             for (var i = 0; i < remaining; i++)
             {
                 var orderId = Guid.NewGuid();
-                var itemCount = random.Next(1, 6);
+                var itemCount = random.Next(minItems, maxItems + 1);
                 var orderItems = new List<OrderItem>(itemCount);
 
                 for (var j = 0; j < itemCount; j++)
