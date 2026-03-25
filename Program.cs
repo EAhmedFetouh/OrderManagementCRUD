@@ -25,7 +25,12 @@ builder.Services.AddMemoryCache();
 builder.Services.Configure<DemoSettings>(builder.Configuration.GetSection("DemoSettings"));
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    var demo = builder.Configuration.GetSection("DemoSettings").Get<DemoSettings>() ?? new DemoSettings();
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        sql => sql.CommandTimeout(demo.DbCommandTimeoutSeconds));
+});
 
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderService, OrderService>();
