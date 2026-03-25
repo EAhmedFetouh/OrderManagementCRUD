@@ -10,4 +10,7 @@ public class DemoSettings
     public int SeedProducts { get; set; } = 500;
     public int SeedOrders { get; set; } = 100_000;
     public int SeedBatchSize { get; set; } = 1_000;
+
+    public int SeedMinItemsPerOrder { get; set; } = 1;
+    public int SeedMaxItemsPerOrder { get; set; } = 5;
 }
