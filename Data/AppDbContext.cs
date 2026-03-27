@@ -10,9 +10,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
 
-    /// <summary>
-    /// Intentionally configures a schema with no secondary indexes to demonstrate CRUD read performance degradation at scale.
-    /// </summary>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Customer>().HasKey(x => x.Id);
@@ -42,7 +39,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<Product>().Property(x => x.Price).HasColumnType("decimal(18,2)");
         modelBuilder.Entity<OrderItem>().Property(x => x.UnitPrice).HasColumnType("decimal(18,2)");
 
-        // Remove convention-based FK indexes to keep the baseline intentionally unoptimized.
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
             var indexes = entityType.GetIndexes().ToList();

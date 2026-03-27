@@ -7,30 +7,22 @@ namespace OrderManagement.CRUD.Repositories;
 
 public interface IOrderRepository
 {
-    /// <summary>
-    /// Demonstrates a write-heavy transaction that updates multiple tables in a single request.
-    /// </summary>
+   
     Task<CreateOrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Demonstrates multi-table JOIN cost for a single details view as data grows.
-    /// </summary>
+   
     Task<OrderDetailsResponse?> GetOrderByIdAsync(Guid orderId, CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Demonstrates customer-centric list queries that become slower without indexes.
-    /// </summary>
+   
     Task<List<CustomerOrderSummaryResponse>> GetCustomerOrdersAsync(Guid customerId, CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Demonstrates full scans and aggregations on transactional tables competing with writes.
-    /// </summary>
+ 
     Task<DashboardResponse> GetDashboardRawAggregationAsync(bool simulateSlowQueries, CancellationToken cancellationToken);
 }
 
 public class OrderRepository(AppDbContext context) : IOrderRepository
 {
-    /// <inheritdoc />
+
     public async Task<CreateOrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken)
     {
         await using var tx = await context.Database.BeginTransactionAsync(cancellationToken);
@@ -102,7 +94,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
         };
     }
 
-    /// <inheritdoc />
+  
     public async Task<OrderDetailsResponse?> GetOrderByIdAsync(Guid orderId, CancellationToken cancellationToken)
     {
         return await context.Orders
@@ -127,7 +119,6 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    /// <inheritdoc />
     public async Task<List<CustomerOrderSummaryResponse>> GetCustomerOrdersAsync(Guid customerId, CancellationToken cancellationToken)
     {
         return await context.Orders
@@ -145,7 +136,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
             .ToListAsync(cancellationToken);
     }
 
-    /// <inheritdoc />
+    
     public async Task<DashboardResponse> GetDashboardRawAggregationAsync(bool simulateSlowQueries, CancellationToken cancellationToken)
     {
         if (simulateSlowQueries)
