@@ -143,11 +143,14 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
         }
 
         var lastMonthStart = DateTime.UtcNow.AddMonths(-1);
+        var lastMonthOrders = context.Orders.Where(o => o.OrderDate >= lastMonthStart);
 
-        var totalOrders = await context.Orders.CountAsync(cancellationToken);
-        var totalRevenue = await context.Orders.SumAsync(o => (decimal?)o.TotalAmount, cancellationToken);
-        var avgOrder = await context.Orders.AverageAsync(o => (decimal?)o.TotalAmount, cancellationToken);
+        // Narrow the scans so the engine can benefit from OrderDate indexes when present.
+        var totalOrders = await lastMonthOrders.CountAsync(cancellationToken);
+        var totalRevenue = await lastMonthOrders.SumAsync(o => (decimal?)o.TotalAmount, cancellationToken);
+        var avgOrder = await lastMonthOrders.AverageAsync(o => (decimal?)o.TotalAmount, cancellationToken);
         var topProducts = await context.OrderItems
+            .Where(oi => oi.Order!.OrderDate >= lastMonthStart)
             .GroupBy(x => new { x.ProductId, ProductName = x.Product!.Name })
             .Select(g => new TopSellingProductResponse
             {
@@ -158,7 +161,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
             .OrderByDescending(x => x.TotalQuantitySold)
             .Take(5)
             .ToListAsync(cancellationToken);
-        var status = await context.Orders
+        var status = await lastMonthOrders
             .GroupBy(x => x.Status)
             .Select(g => new OrderStatusCountResponse
             {
