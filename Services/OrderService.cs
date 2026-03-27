@@ -8,24 +8,15 @@ namespace OrderManagement.CRUD.Services;
 
 public interface IOrderService
 {
-    /// <summary>
-    /// Demonstrates how a simple write workflow grows in latency under concurrent pressure.
-    /// </summary>
     Task<CreateOrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Demonstrates read complexity from multi-join detail retrieval over large datasets.
-    /// </summary>
+ 
     Task<OrderDetailsResponse?> GetOrderByIdAsync(Guid orderId, CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Demonstrates list query slowdown in a CRUD model when customer history grows.
-    /// </summary>
+   
     Task<List<CustomerOrderSummaryResponse>> GetCustomerOrdersAsync(Guid customerId, CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Demonstrates expensive aggregate reporting and optional read caching.
-    /// </summary>
+ 
     Task<DashboardResponse> GetDashboardAsync(CancellationToken cancellationToken);
 }
 
@@ -36,7 +27,6 @@ public class OrderService(
 {
     private readonly DemoSettings _demoSettings = demoSettingsOptions.Value;
 
-    /// <inheritdoc />
     public async Task<CreateOrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
@@ -46,7 +36,6 @@ public class OrderService(
         return result;
     }
 
-    /// <inheritdoc />
     public async Task<OrderDetailsResponse?> GetOrderByIdAsync(Guid orderId, CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
@@ -56,7 +45,6 @@ public class OrderService(
         return result;
     }
 
-    /// <inheritdoc />
     public async Task<List<CustomerOrderSummaryResponse>> GetCustomerOrdersAsync(Guid customerId, CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
@@ -66,7 +54,6 @@ public class OrderService(
         return result;
     }
 
-    /// <inheritdoc />
     public async Task<DashboardResponse> GetDashboardAsync(CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();

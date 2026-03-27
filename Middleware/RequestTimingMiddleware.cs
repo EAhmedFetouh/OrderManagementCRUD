@@ -4,9 +4,7 @@ namespace OrderManagement.CRUD.Middleware;
 
 public class RequestTimingMiddleware(RequestDelegate next, ILogger<RequestTimingMiddleware> logger)
 {
-    /// <summary>
-    /// Demonstrates cross-cutting request timing visibility to reveal endpoint latency growth over time.
-    /// </summary>
+   
     public async Task InvokeAsync(HttpContext context)
     {
         var sw = Stopwatch.StartNew();
