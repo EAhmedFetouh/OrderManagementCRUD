@@ -169,9 +169,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
                 Count = g.Count()
             })
             .ToListAsync(cancellationToken);
-        var revenueLastMonth = await context.Orders
-            .Where(x => x.OrderDate >= lastMonthStart)
-            .SumAsync(x => (decimal?)x.TotalAmount, cancellationToken);
+        var revenueLastMonth = totalRevenue;
 
         return new DashboardResponse
         {
