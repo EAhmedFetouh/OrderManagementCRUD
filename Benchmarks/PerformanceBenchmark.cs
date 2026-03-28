@@ -35,9 +35,9 @@ public class PerformanceBenchmark(
         }).ToArray();
 
         var times = await Task.WhenAll(tasks);
-        var avg = times.Average();
-        logger.LogInformation("ConcurrentWritesOnly average: {AvgMs}ms", avg);
-        return avg;
+        var avgMs = RoundMs(times.Average());
+        logger.LogInformation("ConcurrentWritesOnly average: {AvgMs}ms", avgMs);
+        return avgMs;
     }
 
     public async Task<double> ConcurrentReadsOnly(CancellationToken cancellationToken = default)
@@ -51,9 +51,9 @@ public class PerformanceBenchmark(
         }).ToArray();
 
         var times = await Task.WhenAll(tasks);
-        var avg = times.Average();
-        logger.LogInformation("ConcurrentReadsOnly average: {AvgMs}ms", avg);
-        return avg;
+        var avgMs = RoundMs(times.Average());
+        logger.LogInformation("ConcurrentReadsOnly average: {AvgMs}ms", avgMs);
+        return avgMs;
     }
 
     public async Task<MixedLoadBenchmarkResult> MixedLoad(double writesOnlyBaselineMs, CancellationToken cancellationToken = default)
@@ -78,23 +78,24 @@ public class PerformanceBenchmark(
 
         await Task.WhenAll(writeTasks.Concat(readTasks));
 
-        var avgWrite = writeTasks.Select(t => t.Result).Average();
-        var avgRead = readTasks.Select(t => t.Result).Average();
-        var degradationPercent = writesOnlyBaselineMs <= 0
+        var baselineMs = RoundMs(writesOnlyBaselineMs);
+        var avgWriteMs = RoundMs(writeTasks.Select(t => t.Result).Average());
+        var avgReadMs = RoundMs(readTasks.Select(t => t.Result).Average());
+        var degradationPercent = baselineMs <= 0
             ? 0
-            : ((avgWrite - writesOnlyBaselineMs) / writesOnlyBaselineMs) * 100;
+            : RoundPercent(((avgWriteMs - baselineMs) / baselineMs) * 100);
 
         logger.LogWarning("=== Mixed Load Test ===");
-        logger.LogWarning("Avg CreateOrder time:  {AvgWrite}ms", Math.Round(avgWrite));
-        logger.LogWarning("Avg GetDashboard time: {AvgRead}ms", Math.Round(avgRead));
-        logger.LogWarning("Writes-only baseline:  {Baseline}ms", Math.Round(writesOnlyBaselineMs));
-        logger.LogWarning("Degradation: +{Deg}%", Math.Round(degradationPercent));
+        logger.LogWarning("Avg CreateOrder time:  {AvgWrite}ms", avgWriteMs);
+        logger.LogWarning("Avg GetDashboard time: {AvgRead}ms", avgReadMs);
+        logger.LogWarning("Writes-only baseline:  {Baseline}ms", baselineMs);
+        logger.LogWarning("Degradation: +{Deg}%", degradationPercent);
 
         return new MixedLoadBenchmarkResult
         {
-            AvgCreateOrderTimeMs = avgWrite,
-            AvgGetDashboardTimeMs = avgRead,
-            WritesOnlyBaselineMs = writesOnlyBaselineMs,
+            AvgCreateOrderTimeMs = avgWriteMs,
+            AvgGetDashboardTimeMs = avgReadMs,
+            WritesOnlyBaselineMs = baselineMs,
             DegradationPercent = degradationPercent
         };
     }
@@ -170,4 +171,10 @@ public class PerformanceBenchmark(
         var repo = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
         await repo.GetDashboardRawAggregationAsync(demoSettings.Value.SimulateSlowQueries, cancellationToken);
     }
+
+    private static double RoundMs(double milliseconds) =>
+        Math.Round(milliseconds, 0, MidpointRounding.AwayFromZero);
+
+    private static double RoundPercent(double percent) =>
+        Math.Round(percent, 1, MidpointRounding.AwayFromZero);
 }
