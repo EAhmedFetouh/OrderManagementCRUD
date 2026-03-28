@@ -4,7 +4,6 @@ using OrderManagement.CRUD.Data;
 using OrderManagement.CRUD.Middleware;
 using OrderManagement.CRUD.Models;
 using OrderManagement.CRUD.Repositories;
-using OrderManagement.CRUD.Services;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -33,7 +32,6 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 });
 
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
-builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<PerformanceBenchmark>();
 
 var app = builder.Build();
