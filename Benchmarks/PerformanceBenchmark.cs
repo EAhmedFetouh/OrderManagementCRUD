@@ -100,15 +100,6 @@ public class PerformanceBenchmark(
         };
     }
 
-    public void PrintIndexImpact(double beforeDashboardMs, double afterDashboardMs, double beforeCreateMs, double afterCreateMs, double beforeMixedWriteMs, double afterMixedWriteMs)
-    {
-        logger.LogWarning("=== Index Impact ===");
-        logger.LogWarning("Before Index    After Index");
-        logger.LogWarning("GetDashboard:        {BeforeDashboard}ms          {AfterDashboard}ms", Math.Round(beforeDashboardMs), Math.Round(afterDashboardMs));
-        logger.LogWarning("CreateOrder:          {BeforeCreate}ms          {AfterCreate}ms", Math.Round(beforeCreateMs), Math.Round(afterCreateMs));
-        logger.LogWarning("Mixed Load Writes:    {BeforeMixed}ms          {AfterMixed}ms", Math.Round(beforeMixedWriteMs), Math.Round(afterMixedWriteMs));
-    }
-
     public void PrintMaterializedViewImpact(
         double rawDashboardMs,
         double materializedDashboardMs,
