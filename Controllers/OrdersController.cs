@@ -13,9 +13,7 @@ public class OrdersController(
     PerformanceBenchmark benchmark,
     ILogger<OrdersController> logger) : ControllerBase
 {
-    /// <summary>
-    /// Demonstrates stock validation and multi-entity transactional writes in a CRUD service.
-    /// </summary>
+
     [HttpPost]
     public async Task<ActionResult<CreateOrderResponse>> CreateOrder([FromBody] CreateOrderRequest request, CancellationToken cancellationToken)
     {
@@ -26,9 +24,7 @@ public class OrdersController(
         return Ok(result);
     }
 
-    /// <summary>
-    /// Demonstrates expensive read orchestration from multiple table joins for one API response.
-    /// </summary>
+  
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<OrderDetailsResponse>> GetOrderById(Guid id, CancellationToken cancellationToken)
     {
@@ -40,9 +36,6 @@ public class OrdersController(
         return result is null ? NotFound() : Ok(result);
     }
 
-    /// <summary>
-    /// Demonstrates read growth pain for customer history queries in unindexed CRUD tables.
-    /// </summary>
     [HttpGet("customer/{customerId:guid}")]
     public async Task<ActionResult<List<CustomerOrderSummaryResponse>>> GetCustomerOrders(Guid customerId, CancellationToken cancellationToken)
     {
@@ -53,9 +46,6 @@ public class OrdersController(
         return Ok(result);
     }
 
-    /// <summary>
-    /// Demonstrates stale dashboard behavior when writes and cached reads happen in the same user flow.
-    /// </summary>
     [HttpPost("with-cache-check")]
     public async Task<ActionResult<OrderWithDashboardResponse>> CreateOrderWithCacheCheck(
         [FromBody] CreateOrderRequest request,
@@ -68,9 +58,6 @@ public class OrdersController(
         return Ok(result);
     }
 
-    /// <summary>
-    /// Demonstrates full-scan aggregate dashboard cost and contention against order writes.
-    /// </summary>
     [HttpGet("/api/dashboard")]
     public async Task<ActionResult<DashboardResponse>> GetDashboard(CancellationToken cancellationToken)
     {
@@ -81,9 +68,7 @@ public class OrdersController(
         return Ok(result);
     }
 
-    /// <summary>
-    /// Demonstrates side-by-side latency impact for writes, reads, and mixed-load CRUD contention.
-    /// </summary>
+  
     [HttpPost("/api/benchmarks/run")]
     public async Task<ActionResult<object>> RunBenchmarks(CancellationToken cancellationToken)
     {

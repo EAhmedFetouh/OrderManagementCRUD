@@ -20,9 +20,6 @@ public class PerformanceBenchmark(
     AppDbContext dbContext,
     ILogger<PerformanceBenchmark> logger)
 {
-    /// <summary>
-    /// Demonstrates write-only contention baseline by firing 50 concurrent order create operations.
-    /// </summary>
     public async Task<double> ConcurrentWritesOnly(CancellationToken cancellationToken = default)
     {
         var requests = await BuildRequestsAsync(50, cancellationToken);
@@ -40,9 +37,7 @@ public class PerformanceBenchmark(
         return avg;
     }
 
-    /// <summary>
-    /// Demonstrates read-only dashboard pressure by firing 50 concurrent dashboard requests.
-    /// </summary>
+ 
     public async Task<double> ConcurrentReadsOnly(CancellationToken cancellationToken = default)
     {
         var tasks = Enumerable.Range(0, 50).Select(async _ =>
@@ -59,9 +54,6 @@ public class PerformanceBenchmark(
         return avg;
     }
 
-    /// <summary>
-    /// Demonstrates read/write contention by running 25 create operations and 25 dashboard reads simultaneously.
-    /// </summary>
     public async Task<MixedLoadBenchmarkResult> MixedLoad(double writesOnlyBaselineMs, CancellationToken cancellationToken = default)
     {
         var writeRequests = await BuildRequestsAsync(25, cancellationToken);
@@ -105,9 +97,7 @@ public class PerformanceBenchmark(
         };
     }
 
-    /// <summary>
-    /// Demonstrates side effects of indexing by printing before/after read and write latency comparisons.
-    /// </summary>
+  
     public void PrintIndexImpact(double beforeDashboardMs, double afterDashboardMs, double beforeCreateMs, double afterCreateMs, double beforeMixedWriteMs, double afterMixedWriteMs)
     {
         logger.LogWarning("=== Index Impact ===");
@@ -117,9 +107,7 @@ public class PerformanceBenchmark(
         logger.LogWarning("Mixed Load Writes:    {BeforeMixed}ms          {AfterMixed}ms", Math.Round(beforeMixedWriteMs), Math.Round(afterMixedWriteMs));
     }
 
-    /// <summary>
-    /// Demonstrates read-latency gains from materialized views and the write overhead they introduce.
-    /// </summary>
+  
     public void PrintMaterializedViewImpact(
         double rawDashboardMs,
         double materializedDashboardMs,
@@ -128,10 +116,7 @@ public class PerformanceBenchmark(
         double rawMixedWriteMs,
         double materializedMixedWriteMs)
     {
-        // Materialized views solve read speed
-        // But writes pay the refresh cost
-        // And reads + writes still compete on the same DB server
-        // The architectural problem is still unsolved
+     
         logger.LogWarning("=== Materialized View Impact ===");
         logger.LogWarning("                    Raw Query    Mat. View");
         logger.LogWarning("GetDashboard:         {RawDashboard}ms        {MatDashboard}ms", Math.Round(rawDashboardMs), Math.Round(materializedDashboardMs));
@@ -139,9 +124,7 @@ public class PerformanceBenchmark(
         logger.LogWarning("Mixed Load Writes:     {RawMixed}ms       {MatMixed}ms", Math.Round(rawMixedWriteMs), Math.Round(materializedMixedWriteMs));
     }
 
-    /// <summary>
-    /// Demonstrates synthetic workload generation for repeatable CRUD benchmark requests.
-    /// </summary>
+   
     private async Task<List<CreateOrderRequest>> BuildRequestsAsync(int count, CancellationToken cancellationToken)
     {
         var customerIds = await dbContext.Customers.Select(x => x.Id).Take(1000).ToListAsync(cancellationToken);

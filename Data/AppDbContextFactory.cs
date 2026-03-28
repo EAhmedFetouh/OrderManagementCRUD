@@ -5,9 +5,7 @@ namespace OrderManagement.CRUD.Data;
 
 public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
-    /// <summary>
-    /// Demonstrates explicit design-time configuration so migrations can be generated in monolithic CRUD setups.
-    /// </summary>
+
     public AppDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
