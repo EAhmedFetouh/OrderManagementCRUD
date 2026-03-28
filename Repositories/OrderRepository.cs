@@ -7,12 +7,13 @@ namespace OrderManagement.CRUD.Repositories;
 
 public interface IOrderRepository
 {
- 
+    
     Task<CreateOrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken);
 
-  
+    
     Task<OrderDetailsResponse?> GetOrderByIdAsync(Guid orderId, CancellationToken cancellationToken);
 
+  
     Task<List<CustomerOrderSummaryResponse>> GetCustomerOrdersAsync(Guid customerId, CancellationToken cancellationToken);
 
   
@@ -21,7 +22,6 @@ public interface IOrderRepository
 
 public class OrderRepository(AppDbContext context) : IOrderRepository
 {
-   
     public async Task<CreateOrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken)
     {
         await using var tx = await context.Database.BeginTransactionAsync(cancellationToken);
@@ -117,7 +117,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-  
+    /// <inheritdoc />
     public async Task<List<CustomerOrderSummaryResponse>> GetCustomerOrdersAsync(Guid customerId, CancellationToken cancellationToken)
     {
         return await context.Orders
@@ -145,7 +145,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
         var lastMonthStart = DateTime.UtcNow.AddMonths(-1);
         var lastMonthOrders = context.Orders.Where(o => o.OrderDate >= lastMonthStart);
 
-        // Narrow the scans so the engine can benefit from OrderDate indexes when present.
+     
         var totalOrders = await lastMonthOrders.CountAsync(cancellationToken);
         var totalRevenue = await lastMonthOrders.SumAsync(o => (decimal?)o.TotalAmount, cancellationToken);
         var avgOrder = await lastMonthOrders.AverageAsync(o => (decimal?)o.TotalAmount, cancellationToken);
@@ -169,9 +169,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
                 Count = g.Count()
             })
             .ToListAsync(cancellationToken);
-        var revenueLastMonth = await context.Orders
-            .Where(x => x.OrderDate >= lastMonthStart)
-            .SumAsync(x => (decimal?)x.TotalAmount, cancellationToken);
+        var revenueLastMonth = totalRevenue;
 
         return new DashboardResponse
         {
