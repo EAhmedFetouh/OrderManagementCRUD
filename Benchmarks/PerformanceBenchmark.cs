@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using OrderManagement.CRUD.Data;
@@ -20,9 +21,11 @@ public class MixedLoadBenchmarkResult
 public class PerformanceBenchmark(
     IServiceScopeFactory scopeFactory,
     AppDbContext dbContext,
+    IMemoryCache memoryCache,
     IOptions<DemoSettings> demoSettings,
     ILogger<PerformanceBenchmark> logger)
 {
+    private const string DashboardCacheKey = "dashboard";
     public async Task<double> ConcurrentWritesOnly(CancellationToken cancellationToken = default)
     {
         var requests = await BuildRequestsAsync(50, cancellationToken);
@@ -138,9 +141,23 @@ public class PerformanceBenchmark(
 
     private async Task ExecuteGetDashboardAsync(CancellationToken cancellationToken)
     {
+        var settings = demoSettings.Value;
+
+        if (settings.EnableDashboardCaching &&
+            memoryCache.TryGetValue(DashboardCacheKey, out DashboardResponse? cached) &&
+            cached is not null)
+        {
+            return;
+        }
+
         await using var scope = scopeFactory.CreateAsyncScope();
         var repo = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
-        await repo.GetDashboardRawAggregationAsync(demoSettings.Value.SimulateSlowQueries, cancellationToken);
+        var dashboard = await repo.GetDashboardRawAggregationAsync(settings.SimulateSlowQueries, cancellationToken);
+
+        if (settings.EnableDashboardCaching)
+        {
+            memoryCache.Set(DashboardCacheKey, dashboard, TimeSpan.FromSeconds(30));
+        }
     }
 
     private static double RoundMs(double milliseconds) =>
