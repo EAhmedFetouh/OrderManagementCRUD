@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using OrderManagement.CRUD.Data;
+using OrderManagement.CRUD.Models;
 using OrderManagement.CRUD.Models.DTOs;
-using OrderManagement.CRUD.Services;
+using OrderManagement.CRUD.Repositories;
 
 namespace OrderManagement.CRUD.Benchmarks;
 
@@ -18,8 +20,10 @@ public class MixedLoadBenchmarkResult
 public class PerformanceBenchmark(
     IServiceScopeFactory scopeFactory,
     AppDbContext dbContext,
+    IOptions<DemoSettings> demoSettings,
     ILogger<PerformanceBenchmark> logger)
 {
+   
     public async Task<double> ConcurrentWritesOnly(CancellationToken cancellationToken = default)
     {
         var requests = await BuildRequestsAsync(50, cancellationToken);
@@ -53,7 +57,6 @@ public class PerformanceBenchmark(
         logger.LogInformation("ConcurrentReadsOnly average: {AvgMs}ms", avg);
         return avg;
     }
-
 
     public async Task<MixedLoadBenchmarkResult> MixedLoad(double writesOnlyBaselineMs, CancellationToken cancellationToken = default)
     {
@@ -98,7 +101,7 @@ public class PerformanceBenchmark(
         };
     }
 
- 
+    
     public void PrintIndexImpact(double beforeDashboardMs, double afterDashboardMs, double beforeCreateMs, double afterCreateMs, double beforeMixedWriteMs, double afterMixedWriteMs)
     {
         logger.LogWarning("=== Index Impact ===");
@@ -108,7 +111,9 @@ public class PerformanceBenchmark(
         logger.LogWarning("Mixed Load Writes:    {BeforeMixed}ms          {AfterMixed}ms", Math.Round(beforeMixedWriteMs), Math.Round(afterMixedWriteMs));
     }
 
-  
+    /// <summary>
+    /// Demonstrates read-latency gains from materialized views and the write overhead they introduce.
+    /// </summary>
     public void PrintMaterializedViewImpact(
         double rawDashboardMs,
         double materializedDashboardMs,
@@ -128,7 +133,7 @@ public class PerformanceBenchmark(
         logger.LogWarning("Mixed Load Writes:     {RawMixed}ms       {MatMixed}ms", Math.Round(rawMixedWriteMs), Math.Round(materializedMixedWriteMs));
     }
 
-  
+ 
     private async Task<List<CreateOrderRequest>> BuildRequestsAsync(int count, CancellationToken cancellationToken)
     {
         var customerIds = await dbContext.Customers.Select(x => x.Id).Take(1000).ToListAsync(cancellationToken);
@@ -161,14 +166,14 @@ public class PerformanceBenchmark(
     private async Task ExecuteCreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var scopedOrderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
-        await scopedOrderService.CreateOrderAsync(request, cancellationToken);
+        var repo = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
+        await repo.CreateOrderAsync(request, cancellationToken);
     }
 
     private async Task ExecuteGetDashboardAsync(CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var scopedOrderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
-        await scopedOrderService.GetDashboardAsync(cancellationToken);
+        var repo = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
+        await repo.GetDashboardRawAggregationAsync(demoSettings.Value.SimulateSlowQueries, cancellationToken);
     }
 }
