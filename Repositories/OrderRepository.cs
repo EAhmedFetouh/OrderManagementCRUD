@@ -139,10 +139,6 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
     
     public async Task<DashboardResponse> GetDashboardRawAggregationAsync(bool simulateSlowQueries, CancellationToken cancellationToken)
     {
-        if (simulateSlowQueries)
-        {
-            Thread.Sleep(250);
-        }
 
         var lastMonthStart = DateTime.UtcNow.AddMonths(-1);
         var lastMonthOrders = context.Orders.Where(o => o.OrderDate >= lastMonthStart);
@@ -171,9 +167,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
                 Count = g.Count()
             })
             .ToListAsync(cancellationToken);
-        var revenueLastMonth = await context.Orders
-            .Where(x => x.OrderDate >= lastMonthStart)
-            .SumAsync(x => (decimal?)x.TotalAmount, cancellationToken);
+  
 
         return new DashboardResponse
         {
@@ -181,8 +175,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
             TotalRevenue = totalRevenue ?? 0,
             AverageOrderValue = avgOrder ?? 0,
             TopSellingProducts = topProducts,
-            OrdersPerStatus = status,
-            RevenueLastMonth = revenueLastMonth ?? 0
+            OrdersPerStatus = status
         };
     }
 }
