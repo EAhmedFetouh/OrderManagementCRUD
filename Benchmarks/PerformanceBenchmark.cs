@@ -23,7 +23,6 @@ public class PerformanceBenchmark(
     IOptions<DemoSettings> demoSettings,
     ILogger<PerformanceBenchmark> logger)
 {
-   
     public async Task<double> ConcurrentWritesOnly(CancellationToken cancellationToken = default)
     {
         var requests = await BuildRequestsAsync(50, cancellationToken);
@@ -41,7 +40,6 @@ public class PerformanceBenchmark(
         return avgMs;
     }
 
-   
     public async Task<double> ConcurrentReadsOnly(CancellationToken cancellationToken = default)
     {
         var tasks = Enumerable.Range(0, 50).Select(async _ =>
