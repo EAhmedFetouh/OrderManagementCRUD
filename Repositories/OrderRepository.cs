@@ -7,22 +7,21 @@ namespace OrderManagement.CRUD.Repositories;
 
 public interface IOrderRepository
 {
-   
+    
     Task<CreateOrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken);
 
-   
+    
     Task<OrderDetailsResponse?> GetOrderByIdAsync(Guid orderId, CancellationToken cancellationToken);
 
-   
+  
     Task<List<CustomerOrderSummaryResponse>> GetCustomerOrdersAsync(Guid customerId, CancellationToken cancellationToken);
 
- 
+  
     Task<DashboardResponse> GetDashboardRawAggregationAsync(bool simulateSlowQueries, CancellationToken cancellationToken);
 }
 
 public class OrderRepository(AppDbContext context) : IOrderRepository
 {
-
     public async Task<CreateOrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken)
     {
         await using var tx = await context.Database.BeginTransactionAsync(cancellationToken);
@@ -94,7 +93,6 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
         };
     }
 
-  
     public async Task<OrderDetailsResponse?> GetOrderByIdAsync(Guid orderId, CancellationToken cancellationToken)
     {
         return await context.Orders
@@ -119,6 +117,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    /// <inheritdoc />
     public async Task<List<CustomerOrderSummaryResponse>> GetCustomerOrdersAsync(Guid customerId, CancellationToken cancellationToken)
     {
         return await context.Orders
@@ -136,14 +135,17 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
             .ToListAsync(cancellationToken);
     }
 
-    
     public async Task<DashboardResponse> GetDashboardRawAggregationAsync(bool simulateSlowQueries, CancellationToken cancellationToken)
     {
+        if (simulateSlowQueries)
+        {
+            Thread.Sleep(250);
+        }
 
         var lastMonthStart = DateTime.UtcNow.AddMonths(-1);
         var lastMonthOrders = context.Orders.Where(o => o.OrderDate >= lastMonthStart);
 
-
+     
         var totalOrders = await lastMonthOrders.CountAsync(cancellationToken);
         var totalRevenue = await lastMonthOrders.SumAsync(o => (decimal?)o.TotalAmount, cancellationToken);
         var avgOrder = await lastMonthOrders.AverageAsync(o => (decimal?)o.TotalAmount, cancellationToken);
@@ -167,7 +169,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
                 Count = g.Count()
             })
             .ToListAsync(cancellationToken);
-  
+        var revenueLastMonth = totalRevenue;
 
         return new DashboardResponse
         {
@@ -175,7 +177,8 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
             TotalRevenue = totalRevenue ?? 0,
             AverageOrderValue = avgOrder ?? 0,
             TopSellingProducts = topProducts,
-            OrdersPerStatus = status
+            OrdersPerStatus = status,
+            RevenueLastMonth = revenueLastMonth ?? 0
         };
     }
 }
