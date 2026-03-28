@@ -91,7 +91,6 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
         };
     }
 
-    /// <inheritdoc />
     public async Task<OrderDetailsResponse?> GetOrderByIdAsync(Guid orderId, CancellationToken cancellationToken)
     {
         return await context.Orders
