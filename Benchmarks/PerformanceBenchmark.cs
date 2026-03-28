@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using OrderManagement.CRUD.Data;
+using OrderManagement.CRUD.Models;
 using OrderManagement.CRUD.Models.DTOs;
-using OrderManagement.CRUD.Services;
+using OrderManagement.CRUD.Repositories;
 
 namespace OrderManagement.CRUD.Benchmarks;
 
@@ -18,6 +20,7 @@ public class MixedLoadBenchmarkResult
 public class PerformanceBenchmark(
     IServiceScopeFactory scopeFactory,
     AppDbContext dbContext,
+    IOptions<DemoSettings> demoSettings,
     ILogger<PerformanceBenchmark> logger)
 {
     public async Task<double> ConcurrentWritesOnly(CancellationToken cancellationToken = default)
@@ -152,14 +155,14 @@ public class PerformanceBenchmark(
     private async Task ExecuteCreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var scopedOrderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
-        await scopedOrderService.CreateOrderAsync(request, cancellationToken);
+        var repo = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
+        await repo.CreateOrderAsync(request, cancellationToken);
     }
 
     private async Task ExecuteGetDashboardAsync(CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var scopedOrderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
-        await scopedOrderService.GetDashboardAsync(cancellationToken);
+        var repo = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
+        await repo.GetDashboardFromMaterializedViewAsync(demoSettings.Value.SimulateSlowQueries, cancellationToken);
     }
 }

@@ -1,82 +1,98 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using OrderManagement.CRUD.Benchmarks;
+using OrderManagement.CRUD.Models;
 using OrderManagement.CRUD.Models.DTOs;
-using OrderManagement.CRUD.Services;
+using OrderManagement.CRUD.Repositories;
 
 namespace OrderManagement.CRUD.Controllers;
 
 [ApiController]
 [Route("api/orders")]
 public class OrdersController(
-    IOrderService orderService,
+    IOrderRepository repository,
+    IMemoryCache memoryCache,
+    IOptions<DemoSettings> demoSettings,
     PerformanceBenchmark benchmark,
     ILogger<OrdersController> logger) : ControllerBase
 {
-   
+    private const string DashboardCacheKey = "dashboard";
+
     [HttpPost]
     public async Task<ActionResult<CreateOrderResponse>> CreateOrder([FromBody] CreateOrderRequest request, CancellationToken cancellationToken)
     {
-        var sw = Stopwatch.StartNew();
-        var result = await orderService.CreateOrderAsync(request, cancellationToken);
-        sw.Stop();
-        logger.LogInformation("POST /api/orders executed in {ElapsedMs} ms", sw.ElapsedMilliseconds);
+        var result = await repository.CreateOrderAsync(request, cancellationToken);
         return Ok(result);
     }
 
-    
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<OrderDetailsResponse>> GetOrderById(Guid id, CancellationToken cancellationToken)
     {
-        var sw = Stopwatch.StartNew();
-        var result = await orderService.GetOrderByIdAsync(id, cancellationToken);
-        sw.Stop();
-        logger.LogInformation("GET /api/orders/{OrderId} executed in {ElapsedMs} ms", id, sw.ElapsedMilliseconds);
-
+        var result = await repository.GetOrderByIdAsync(id, cancellationToken);
         return result is null ? NotFound() : Ok(result);
     }
 
-    
     [HttpGet("customer/{customerId:guid}")]
     public async Task<ActionResult<List<CustomerOrderSummaryResponse>>> GetCustomerOrders(Guid customerId, CancellationToken cancellationToken)
     {
-        var sw = Stopwatch.StartNew();
-        var result = await orderService.GetCustomerOrdersAsync(customerId, cancellationToken);
-        sw.Stop();
-        logger.LogInformation("GET /api/orders/customer/{CustomerId} executed in {ElapsedMs} ms", customerId, sw.ElapsedMilliseconds);
+        var result = await repository.GetCustomerOrdersAsync(customerId, cancellationToken);
         return Ok(result);
     }
 
-  
     [HttpPost("with-cache-check")]
     public async Task<ActionResult<OrderWithDashboardResponse>> CreateOrderWithCacheCheck(
         [FromBody] CreateOrderRequest request,
         CancellationToken cancellationToken)
     {
-        var sw = Stopwatch.StartNew();
-        var result = await orderService.CreateOrderAndReadCachedDashboardAsync(request, cancellationToken);
-        sw.Stop();
-        logger.LogInformation("POST /api/orders/with-cache-check executed in {ElapsedMs} ms", sw.ElapsedMilliseconds);
-        return Ok(result);
+        var orderResult = await repository.CreateOrderAsync(request, cancellationToken);
+        var dashboard = await GetDashboardWithCacheAsync(cancellationToken);
+        return Ok(new OrderWithDashboardResponse
+        {
+            Order = orderResult,
+            Dashboard = dashboard
+        });
     }
-
 
     [HttpGet("/api/dashboard")]
     public async Task<ActionResult<DashboardResponse>> GetDashboard(CancellationToken cancellationToken)
     {
-        var sw = Stopwatch.StartNew();
-        var result = await orderService.GetDashboardAsync(cancellationToken);
-        sw.Stop();
-        logger.LogInformation("GET /api/dashboard executed in {ElapsedMs} ms", sw.ElapsedMilliseconds);
+        var result = await GetDashboardWithCacheAsync(cancellationToken);
         return Ok(result);
     }
 
- 
     [HttpGet("/api/dashboard/compare")]
     public async Task<ActionResult<object>> CompareDashboard(CancellationToken cancellationToken)
     {
-        var result = await orderService.CompareDashboardQueriesAsync(cancellationToken);
-        return Ok(result);
+        var settings = demoSettings.Value;
+
+        var rawSw = Stopwatch.StartNew();
+        var raw = await repository.GetDashboardRawAggregationAsync(settings.SimulateSlowQueries, cancellationToken);
+        rawSw.Stop();
+
+        var materializedSw = Stopwatch.StartNew();
+        var materialized = await repository.GetDashboardFromMaterializedViewAsync(settings.SimulateSlowQueries, cancellationToken);
+        materializedSw.Stop();
+
+        var improvement = rawSw.ElapsedMilliseconds == 0
+            ? 0
+            : (1 - (materializedSw.Elapsed.TotalMilliseconds / rawSw.Elapsed.TotalMilliseconds)) * 100;
+
+        return Ok(new
+        {
+            rawQuery = new
+            {
+                data = raw,
+                executionMs = rawSw.ElapsedMilliseconds
+            },
+            materializedView = new
+            {
+                data = materialized,
+                executionMs = materializedSw.ElapsedMilliseconds
+            },
+            improvement = $"{Math.Round(improvement)}% faster"
+        });
     }
 
     [HttpPost("/api/benchmarks/run")]
@@ -94,7 +110,6 @@ public class OrdersController(
         });
     }
 
-   
     [HttpPost("/api/benchmarks/materialized-impact")]
     public async Task<ActionResult<object>> RunMaterializedViewImpactBenchmark(
         [FromQuery] double rawDashboardMs = 1840,
@@ -130,5 +145,28 @@ public class OrdersController(
                 MixedLoadWritesMs = mixedWriteCurrent
             }
         });
+    }
+
+    private async Task<DashboardResponse> GetDashboardWithCacheAsync(CancellationToken cancellationToken)
+    {
+        var settings = demoSettings.Value;
+
+        if (settings.EnableDashboardCaching &&
+            memoryCache.TryGetValue(DashboardCacheKey, out DashboardResponse? cached) &&
+            cached is not null)
+        {
+            logger.LogInformation("CACHE HIT");
+            return cached;
+        }
+
+        var dashboard = await repository.GetDashboardFromMaterializedViewAsync(settings.SimulateSlowQueries, cancellationToken);
+
+        if (settings.EnableDashboardCaching)
+        {
+            memoryCache.Set(DashboardCacheKey, dashboard, TimeSpan.FromSeconds(30));
+            logger.LogInformation("CACHE MISS");
+        }
+
+        return dashboard;
     }
 }
