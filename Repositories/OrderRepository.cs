@@ -147,8 +147,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
         var lastMonthStart = DateTime.UtcNow.AddMonths(-1);
         var lastMonthOrders = context.Orders.Where(o => o.OrderDate >= lastMonthStart);
 
-        // This query competes with writes on the same DB
-        // Narrow the scans so the engine can benefit from OrderDate indexes when present.
+
         var totalOrders = await lastMonthOrders.CountAsync(cancellationToken);
         var totalRevenue = await lastMonthOrders.SumAsync(o => (decimal?)o.TotalAmount, cancellationToken);
         var avgOrder = await lastMonthOrders.AverageAsync(o => (decimal?)o.TotalAmount, cancellationToken);
