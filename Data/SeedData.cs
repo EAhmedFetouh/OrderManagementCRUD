@@ -8,9 +8,6 @@ namespace OrderManagement.CRUD.Data;
 
 public static class SeedData
 {
-    /// <summary>
-    /// Seeds a high-volume dataset once to demonstrate how basic CRUD patterns degrade as row counts grow.
-    /// </summary>
     public static async Task InitializeAsync(IServiceProvider services, ILogger logger)
     {
         await using var scope = services.CreateAsyncScope();

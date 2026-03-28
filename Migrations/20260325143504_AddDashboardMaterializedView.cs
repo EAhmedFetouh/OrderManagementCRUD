@@ -51,7 +51,7 @@ namespace OrderManagement.CRUD.Migrations
                 """);
         }
 
-        /// <inheritdoc />
+     
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql(
