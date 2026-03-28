@@ -111,9 +111,6 @@ public class PerformanceBenchmark(
         logger.LogWarning("Mixed Load Writes:    {BeforeMixed}ms          {AfterMixed}ms", Math.Round(beforeMixedWriteMs), Math.Round(afterMixedWriteMs));
     }
 
-    /// <summary>
-    /// Demonstrates read-latency gains from materialized views and the write overhead they introduce.
-    /// </summary>
     public void PrintMaterializedViewImpact(
         double rawDashboardMs,
         double materializedDashboardMs,
@@ -122,10 +119,6 @@ public class PerformanceBenchmark(
         double rawMixedWriteMs,
         double materializedMixedWriteMs)
     {
-        // Materialized views solve read speed
-        // But writes pay the refresh cost
-        // And reads + writes still compete on the same DB server
-        // The architectural problem is still unsolved
         logger.LogWarning("=== Materialized View Impact ===");
         logger.LogWarning("                    Raw Query    Mat. View");
         logger.LogWarning("GetDashboard:         {RawDashboard}ms        {MatDashboard}ms", Math.Round(rawDashboardMs), Math.Round(materializedDashboardMs));
