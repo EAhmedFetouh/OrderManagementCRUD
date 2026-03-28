@@ -101,32 +101,6 @@ public class PerformanceBenchmark(
         };
     }
 
-    
-    public void PrintIndexImpact(double beforeDashboardMs, double afterDashboardMs, double beforeCreateMs, double afterCreateMs, double beforeMixedWriteMs, double afterMixedWriteMs)
-    {
-        logger.LogWarning("=== Index Impact ===");
-        logger.LogWarning("Before Index    After Index");
-        logger.LogWarning("GetDashboard:        {BeforeDashboard}ms          {AfterDashboard}ms", Math.Round(beforeDashboardMs), Math.Round(afterDashboardMs));
-        logger.LogWarning("CreateOrder:          {BeforeCreate}ms          {AfterCreate}ms", Math.Round(beforeCreateMs), Math.Round(afterCreateMs));
-        logger.LogWarning("Mixed Load Writes:    {BeforeMixed}ms          {AfterMixed}ms", Math.Round(beforeMixedWriteMs), Math.Round(afterMixedWriteMs));
-    }
-
-    public void PrintMaterializedViewImpact(
-        double rawDashboardMs,
-        double materializedDashboardMs,
-        double rawCreateMs,
-        double materializedCreateMs,
-        double rawMixedWriteMs,
-        double materializedMixedWriteMs)
-    {
-        logger.LogWarning("=== Materialized View Impact ===");
-        logger.LogWarning("                    Raw Query    Mat. View");
-        logger.LogWarning("GetDashboard:         {RawDashboard}ms        {MatDashboard}ms", Math.Round(rawDashboardMs), Math.Round(materializedDashboardMs));
-        logger.LogWarning("CreateOrder:           {RawCreate}ms       {MatCreate}ms", Math.Round(rawCreateMs), Math.Round(materializedCreateMs));
-        logger.LogWarning("Mixed Load Writes:     {RawMixed}ms       {MatMixed}ms", Math.Round(rawMixedWriteMs), Math.Round(materializedMixedWriteMs));
-    }
-
- 
     private async Task<List<CreateOrderRequest>> BuildRequestsAsync(int count, CancellationToken cancellationToken)
     {
         var customerIds = await dbContext.Customers.Select(x => x.Id).Take(1000).ToListAsync(cancellationToken);
