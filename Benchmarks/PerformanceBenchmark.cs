@@ -45,6 +45,7 @@ public class PerformanceBenchmark(
 
     public async Task<double> ConcurrentReadsOnly(CancellationToken cancellationToken = default)
     {
+        // Do not clear IMemoryCache: once populated, dashboard stays hot until TTL (30s) or process restart.
         var tasks = Enumerable.Range(0, 50).Select(async _ =>
         {
             var sw = Stopwatch.StartNew();
@@ -54,8 +55,8 @@ public class PerformanceBenchmark(
         }).ToArray();
 
         var times = await Task.WhenAll(tasks);
-        var avgMs = RoundMs(times.Average());
-        logger.LogInformation("ConcurrentReadsOnly average: {AvgMs}ms", avgMs);
+        var avgMs = RoundReadMs(times.Average());
+        logger.LogInformation("ConcurrentReadsOnly average: {AvgMs:F4}ms", avgMs);
         return avgMs;
     }
 
@@ -83,16 +84,16 @@ public class PerformanceBenchmark(
 
         var baselineMs = RoundMs(writesOnlyBaselineMs);
         var avgWriteMs = RoundMs(writeTasks.Select(t => t.Result).Average());
-        var avgReadMs = RoundMs(readTasks.Select(t => t.Result).Average());
+        var avgReadMs = RoundReadMs(readTasks.Select(t => t.Result).Average());
         var degradationPercent = baselineMs <= 0
             ? 0
             : RoundPercent(((avgWriteMs - baselineMs) / baselineMs) * 100);
 
         logger.LogWarning("=== Mixed Load Test ===");
-        logger.LogWarning("Avg CreateOrder time:  {AvgWrite}ms", avgWriteMs);
-        logger.LogWarning("Avg GetDashboard time: {AvgRead}ms", avgReadMs);
-        logger.LogWarning("Writes-only baseline:  {Baseline}ms", baselineMs);
-        logger.LogWarning("Degradation: +{Deg}%", degradationPercent);
+        logger.LogWarning("Avg CreateOrder time:  {AvgWrite:F2}ms", avgWriteMs);
+        logger.LogWarning("Avg GetDashboard time: {AvgRead:F4}ms", avgReadMs);
+        logger.LogWarning("Writes-only baseline:  {Baseline:F2}ms", baselineMs);
+        logger.LogWarning("Degradation: {Deg}%", degradationPercent);
 
         return new MixedLoadBenchmarkResult
         {
@@ -176,7 +177,10 @@ public class PerformanceBenchmark(
     }
 
     private static double RoundMs(double milliseconds) =>
-        Math.Round(milliseconds, 0, MidpointRounding.AwayFromZero);
+        Math.Round(milliseconds, 2, MidpointRounding.AwayFromZero);
+
+    private static double RoundReadMs(double milliseconds) =>
+        Math.Round(milliseconds, 4, MidpointRounding.AwayFromZero);
 
     private static double RoundPercent(double percent) =>
         Math.Round(percent, 1, MidpointRounding.AwayFromZero);
