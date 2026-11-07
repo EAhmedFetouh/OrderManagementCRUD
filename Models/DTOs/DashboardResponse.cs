@@ -9,6 +9,7 @@ public class DashboardResponse
     public decimal AverageOrderValue { get; set; }
     public List<TopSellingProductResponse> TopSellingProducts { get; set; } = new();
     public List<OrderStatusCountResponse> OrdersPerStatus { get; set; } = new();
+    public decimal RevenueLastMonth { get; set; }
 }
 
 public class TopSellingProductResponse

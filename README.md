@@ -1,76 +1,55 @@
 # OrderManagement.CRUD
 
-Performance-oriented demo API. **Each Git branch is a different stage** of the same app (indexes, caching, materialized view). Clone once, then `git checkout` the branch you want to run.
+كود الحلقة 4 من كورس CQRS: قياس أداء تطبيق Order Management قبل CQRS. كل branch يمثل مرحلة.
 
-## Requirements
+| Branch | المرحلة |
+|---|---|
+| `step/01-crud-baseline` | Baseline من غير Indexes إضافية |
+| `step/02-indexes-misaligned` | Indexes مش مناسبة لاستعلام الـ Dashboard (مش معروضة في الفيديو) |
+| `step/02b-indexes-dashboard` | Indexes مناسبة للـ Dashboard |
+| `step/03-add-caching` | In-memory cache لمدة 30 ثانية |
+| `step/04-add-materialized-view` | Indexed Views في SQL Server |
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download)
-- [SQL Server](https://www.microsoft.com/sql-server) (local install or Docker)
-- [EF Core CLI](https://learn.microsoft.com/en-us/ef/core/cli/dotnet) (for migrations):  
-  `dotnet tool install --global dotnet-ef` (if you do not have it)
+> الـ branches مش تراكمية: `step/03` و`step/04` مفيهمش Indexes الخاصة بـ `step/02b`.
 
-## Configuration
+## المتطلبات
 
-1. Open `appsettings.json`.
-2. Set `ConnectionStrings:DefaultConnection` to your SQL Server instance.
-3. **Use a different database name per stage** so schemas and seeds do not clash (recommended names are in `STAGES_RUNBOOK.md`).
+- .NET 8 SDK
+- SQL Server محلي أو على Docker
+- `dotnet tool install --global dotnet-ef` (اختياري، لأن التطبيق بيعمل migrate عند التشغيل)
 
-Example:
+## التشغيل
 
-```json
-"ConnectionStrings": {
-  "DefaultConnection": "Server=localhost;Database=OrderCrud_S1_Baseline;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true"
-}
-```
-
-## Clone and switch branches
-
-```bash
-git clone https://github.com/YOUR_USER/YOUR_REPO.git
-cd OrderManagement.CRUD
-
-git branch -a
-git checkout step/01-crud-baseline
-```
-
-List of stage branches (rough order):
-
-| Branch | What it demonstrates |
-|--------|----------------------|
-| `step/01-crud-baseline` | Baseline CRUD + heavy dashboard query |
-| `step/02-indexes-misaligned` | Indexes that do not match the hot query pattern |
-| `step/02b-indexes-dashboard` | Indexes aligned with the dashboard query |
-| `step/03-add-caching` | In-memory caching for the dashboard |
-| `step/04-add-materialized-view` | SQL Server indexed view (materialized aggregation) |
-
-## Run the app (after choosing a branch)
-
-From the project folder (`OrderManagement.CRUD`):
+1. عدّل `ConnectionStrings:DefaultConnection` في `appsettings.json`. على Mac أو Linux استخدم `User Id` و`Password` بدل `Trusted_Connection`.
+2. استخدم اسم قاعدة بيانات مختلف لكل branch، مثل `OrderCrud_S1_Baseline`.
+3. شغّل:
 
 ```bash
-dotnet restore
-dotnet ef database update
 dotnet run
 ```
 
-- **First run** may seed a large dataset (see `DemoSettings` in `appsettings.json`). Reduce `SeedOrders` for a quicker setup.
-- Swagger (if enabled for Development): open the URL shown in the console (often `https://localhost:7xxx` or `http://localhost:5xxx`).
+أول تشغيل بيعمل seed لحوالي 100 ألف Order و2 مليون Order Item، وده بياخد وقت. لتجربة أسرع قلّل `DemoSettings:SeedOrders`.
 
-## Useful HTTP endpoints (typical)
+## القياس
 
-- `GET /api/dashboard` — dashboard aggregation  
-- `POST /api/benchmarks/run` — load test endpoint (if present on that branch)  
-- On later branches: `GET /api/dashboard/compare`, materialized benchmarks, etc. (see `STAGES_RUNBOOK.md`)
-
-## More detail
-
-Full per-stage database names, migration commands, and test checklist: **`STAGES_RUNBOOK.md`**.
-
-## Publish all branches (maintainers)
-
-```bash
-git remote add origin https://github.com/YOUR_USER/YOUR_REPO.git
-git push -u origin --all
+```text
+GET  /api/dashboard
+POST /api/benchmarks/run
 ```
 
-Replace the URL with your empty repository. Participants then clone and `git checkout` any `step/...` branch as above.
+- شغّل الـ Benchmark 3 مرات وخد الوسيط.
+- الأرقام بتختلف من جهاز للتاني، فقارن الاتجاه مش الرقم نفسه.
+- الـ Benchmark بيتنفذ جوه التطبيق من غير HTTP.
+
+### `step/03-add-caching`
+
+اطلب `GET /api/dashboard` الأول، وبعدها شغّل الـ Benchmark خلال أقل من 30 ثانية. لو الكاش فاضي، الـ 50 قراءة كلهم هيروحوا لقاعدة البيانات في نفس اللحظة (Cache Stampede).
+
+### `step/04-add-materialized-view`
+
+```text
+GET  /api/dashboard/compare
+POST /api/benchmarks/materialized-impact?rawDashboardMs=...&rawCreateOrderMs=...&rawMixedWriteMs=...
+```
+
+القيم في الطلب التاني هي أرقامك من `step/01-crud-baseline`.

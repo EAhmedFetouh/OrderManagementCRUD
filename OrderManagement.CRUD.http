@@ -1,6 +1,10 @@
-@OrderManagement.CRUD_HostAddress = http://localhost:5186
+@host = http://localhost:5186
 
-GET {{OrderManagement.CRUD_HostAddress}}/weatherforecast/
+GET {{host}}/api/dashboard
 Accept: application/json
+
+###
+
+POST {{host}}/api/benchmarks/run
 
 ###
