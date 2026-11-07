@@ -54,7 +54,7 @@ public class PerformanceBenchmark(
         }).ToArray();
 
         var times = await Task.WhenAll(tasks);
-        var avgMs = RoundMs(times.Average());
+        var avgMs = RoundReadMs(times.Average());
         logger.LogInformation("ConcurrentReadsOnly average: {AvgMs}ms", avgMs);
         return avgMs;
     }
@@ -83,7 +83,7 @@ public class PerformanceBenchmark(
 
         var baselineMs = RoundMs(writesOnlyBaselineMs);
         var avgWriteMs = RoundMs(writeTasks.Select(t => t.Result).Average());
-        var avgReadMs = RoundMs(readTasks.Select(t => t.Result).Average());
+        var avgReadMs = RoundReadMs(readTasks.Select(t => t.Result).Average());
         var degradationPercent = baselineMs <= 0
             ? 0
             : RoundPercent(((avgWriteMs - baselineMs) / baselineMs) * 100);
@@ -161,7 +161,10 @@ public class PerformanceBenchmark(
     }
 
     private static double RoundMs(double milliseconds) =>
-        Math.Round(milliseconds, 0, MidpointRounding.AwayFromZero);
+        Math.Round(milliseconds, 2, MidpointRounding.AwayFromZero);
+
+    private static double RoundReadMs(double milliseconds) =>
+        Math.Round(milliseconds, 4, MidpointRounding.AwayFromZero);
 
     private static double RoundPercent(double percent) =>
         Math.Round(percent, 1, MidpointRounding.AwayFromZero);
