@@ -143,7 +143,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
             Thread.Sleep(250);
         }
 
-        var lastMonthStart = DateTime.UtcNow.AddMonths(-1);
+        var lastMonthStart = DateTime.UtcNow.Date.AddMonths(-1);
         var lastMonthOrders = context.Orders.Where(o => o.OrderDate >= lastMonthStart);
 
         var totalOrders = await lastMonthOrders.CountAsync(cancellationToken);
@@ -192,28 +192,28 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
                 Thread.Sleep(250);
             }
 
-            var lastMonthStart = DateTime.UtcNow.AddMonths(-1);
+            var lastMonthStart = DateTime.UtcNow.Date.AddMonths(-1);
 
             var materializedRows = await context.Database.SqlQuery<DashboardMaterializedRow>(
-                    $@"SELECT [Status], [OrdersPerStatus], [RevenuePerStatus]
-                       FROM [dbo].[vw_DashboardSummary]")
+                    $@"SELECT [Status],
+                              SUM([OrdersCount]) AS [OrdersPerStatus],
+                              SUM([Revenue]) AS [RevenuePerStatus]
+                       FROM [dbo].[vw_DashboardSummary] WITH (NOEXPAND)
+                       WHERE [OrderDay] >= CAST({lastMonthStart} AS date)
+                       GROUP BY [Status]")
                 .ToListAsync(cancellationToken);
 
-            var topProducts = await context.OrderItems
-                .GroupBy(x => new { x.ProductId, ProductName = x.Product!.Name })
-                .Select(g => new TopSellingProductResponse
-                {
-                    ProductId = g.Key.ProductId,
-                    ProductName = g.Key.ProductName,
-                    TotalQuantitySold = g.Sum(x => x.Quantity)
-                })
-                .OrderByDescending(x => x.TotalQuantitySold)
-                .Take(5)
+            var topProductRows = await context.Database.SqlQuery<TopProductMaterializedRow>(
+                    $@"SELECT TOP (5)
+                              v.[ProductId],
+                              p.[Name] AS [ProductName],
+                              SUM(v.[TotalQuantity]) AS [TotalQuantitySold]
+                       FROM [dbo].[vw_DashboardTopProducts] AS v WITH (NOEXPAND)
+                       INNER JOIN [dbo].[Products] AS p ON p.[Id] = v.[ProductId]
+                       WHERE v.[OrderDay] >= CAST({lastMonthStart} AS date)
+                       GROUP BY v.[ProductId], p.[Name]
+                       ORDER BY [TotalQuantitySold] DESC")
                 .ToListAsync(cancellationToken);
-
-            var revenueLastMonth = await context.Orders
-                .Where(x => x.OrderDate >= lastMonthStart)
-                .SumAsync(x => (decimal?)x.TotalAmount, cancellationToken);
 
             var totalOrders = materializedRows.Sum(x => x.OrdersPerStatus);
             var totalRevenue = materializedRows.Sum(x => x.RevenuePerStatus);
@@ -222,8 +222,15 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
             {
                 TotalOrders = (int)totalOrders,
                 TotalRevenue = totalRevenue,
-                AverageOrderValue = totalOrders == 0 ? 0 : totalRevenue / totalOrders,
-                TopSellingProducts = topProducts,
+                AverageOrderValue = totalOrders == 0 ? 0 : Math.Round(totalRevenue / totalOrders, 6),
+                TopSellingProducts = topProductRows
+                    .Select(x => new TopSellingProductResponse
+                    {
+                        ProductId = x.ProductId,
+                        ProductName = x.ProductName,
+                        TotalQuantitySold = (int)x.TotalQuantitySold
+                    })
+                    .ToList(),
                 OrdersPerStatus = materializedRows
                     .Select(x => new OrderStatusCountResponse
                     {
@@ -232,7 +239,7 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
                     })
                     .OrderBy(x => x.Status)
                     .ToList(),
-                RevenueLastMonth = revenueLastMonth ?? 0
+                RevenueLastMonth = totalRevenue
             };
         }
         catch (SqlException ex) when (ex.Number == 208)
@@ -247,5 +254,12 @@ public class OrderRepository(AppDbContext context) : IOrderRepository
         public long OrdersPerStatus { get; set; }
         [Column(TypeName = "decimal(19,2)")]
         public decimal RevenuePerStatus { get; set; }
+    }
+
+    private sealed class TopProductMaterializedRow
+    {
+        public Guid ProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public long TotalQuantitySold { get; set; }
     }
 }

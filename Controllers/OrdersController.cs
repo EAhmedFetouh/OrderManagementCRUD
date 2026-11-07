@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using OrderManagement.CRUD.Benchmarks;
@@ -112,9 +113,9 @@ public class OrdersController(
 
     [HttpPost("/api/benchmarks/materialized-impact")]
     public async Task<ActionResult<object>> RunMaterializedViewImpactBenchmark(
-        [FromQuery] double rawDashboardMs = 1840,
-        [FromQuery] double rawCreateOrderMs = 180,
-        [FromQuery] double rawMixedWriteMs = 320,
+        [FromQuery, BindRequired] double rawDashboardMs,
+        [FromQuery, BindRequired] double rawCreateOrderMs,
+        [FromQuery, BindRequired] double rawMixedWriteMs,
         CancellationToken cancellationToken = default)
     {
         var currentCreate = await benchmark.ConcurrentWritesOnly(cancellationToken);

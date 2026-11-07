@@ -1,45 +1,57 @@
-# OrderManagement.CRUD (demo by branch)
+# OrderManagement.CRUD
 
-مشروع تجريبي للأداء: كل **فرع (branch)** يمثل مرحلة مختلفة. انسخ المستودع ثم بدّل الفرع حسب ما تريد تجربته.
+كود الحلقة 4 من كورس CQRS: قياس أداء تطبيق Order Management قبل CQRS. كل branch يمثل مرحلة.
+
+| Branch | المرحلة |
+|---|---|
+| `step/01-crud-baseline` | Baseline من غير Indexes إضافية |
+| `step/02-indexes-misaligned` | Indexes مش مناسبة لاستعلام الـ Dashboard (مش معروضة في الفيديو) |
+| `step/02b-indexes-dashboard` | Indexes مناسبة للـ Dashboard |
+| `step/03-add-caching` | In-memory cache لمدة 30 ثانية |
+| `step/04-add-materialized-view` | Indexed Views في SQL Server |
+
+> الـ branches مش تراكمية: `step/03` و`step/04` مفيهمش Indexes الخاصة بـ `step/02b`.
 
 ## المتطلبات
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download)
-- SQL Server (محلي أو Docker) + تعديل `ConnectionStrings:DefaultConnection` في `appsettings.json`
-- لكل مرحلة يُفضّل **اسم قاعدة بيانات منفصل** (انظر `STAGES_RUNBOOK.md`)
+- .NET 8 SDK
+- SQL Server محلي أو على Docker
+- `dotnet tool install --global dotnet-ef` (اختياري، لأن التطبيق بيعمل migrate عند التشغيل)
 
-## استنساخ والتبديل بين الفروع
+## التشغيل
 
-```bash
-git clone <رابط-المستودع>
-cd OrderManagement.CRUD
-
-git branch -a
-git checkout step/01-crud-baseline
-```
-
-## أسماء الفروع (بالترتيب التقريبي)
-
-| الفرع | الفكرة |
-|--------|--------|
-| `step/01-crud-baseline` | Baseline |
-| `step/02-indexes-misaligned` | فهارس غير متوافقة |
-| `step/02b-indexes-dashboard` | فهارس مناسبة للداشبورد |
-| `step/03-add-caching` | كاش للداشبورد |
-| `step/04-add-materialized-view` | Materialized / indexed view |
-
-## تشغيل بعد اختيار الفرع
+1. عدّل `ConnectionStrings:DefaultConnection` في `appsettings.json`. على Mac أو Linux استخدم `User Id` و`Password` بدل `Trusted_Connection`.
+2. استخدم اسم قاعدة بيانات مختلف لكل branch، مثل `OrderCrud_S1_Baseline`.
+3. شغّل:
 
 ```bash
-dotnet ef database update
 dotnet run
 ```
 
-التفاصيل الكاملة (أسماء الـ DB المقترحة، الاختبارات): **`STAGES_RUNBOOK.md`**
+أول تشغيل بيعمل seed لحوالي 100 ألف Order و2 مليون Order Item، وده بياخد وقت. لتجربة أسرع قلّل `DemoSettings:SeedOrders`.
 
-## رفع المستودع (لصاحب المشروع)
+## القياس
 
-```bash
-git remote add origin <رابط-المستودع-الفارغ>
-git push -u origin --all
+```text
+GET  /api/dashboard
+POST /api/benchmarks/run
 ```
+
+- شغّل الـ Benchmark 3 مرات وخد الوسيط.
+- الأرقام بتختلف من جهاز للتاني، فقارن الاتجاه مش الرقم نفسه.
+- الـ Benchmark بيتنفذ جوه التطبيق من غير HTTP.
+
+### `step/03-add-caching`
+
+اطلب `GET /api/dashboard` الأول، وبعدها شغّل الـ Benchmark خلال أقل من 30 ثانية. لو الكاش فاضي، الـ 50 قراءة كلهم هيروحوا لقاعدة البيانات في نفس اللحظة (Cache Stampede).
+
+### `step/04-add-materialized-view`
+
+> الكود هنا اتطور عن المعروض في الفيديو: الـ Views بقت مجمعة باليوم، عشان تقرا آخر شهر زي الاستعلام العادي، وأعلى المنتجات بقت من View. الـ View القديمة موجودة في migration `AddDashboardMaterializedView`، والتحديث في `ScopeDashboardViewsByDay`.
+
+```text
+GET  /api/dashboard/compare
+POST /api/benchmarks/materialized-impact?rawDashboardMs=...&rawCreateOrderMs=...&rawMixedWriteMs=...
+```
+
+القيم في الطلب التاني هي أرقامك من `step/01-crud-baseline`.

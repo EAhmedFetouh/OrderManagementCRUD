@@ -98,6 +98,7 @@ public static class SeedData
             await context.Orders.AddRangeAsync(orderBatch);
             await context.OrderItems.AddRangeAsync(itemBatch);
             await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
             logger.LogInformation("Seed progress: {Count}/{Total} orders", batchStart + remaining, demoSettings.SeedOrders);
         }
 
